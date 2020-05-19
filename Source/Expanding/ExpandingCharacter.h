@@ -6,6 +6,9 @@
 #include "GameFramework/Character.h"
 #include "ExpandingCharacter.generated.h"
 
+class UInputComponent;
+class APickupandRotateActor;
+
 UCLASS(config=Game)
 class AExpandingCharacter : public ACharacter
 {
@@ -29,7 +32,46 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category=Camera)
 	float BaseLookUpRate;
 
+	UPROPERTY(EditAnywhere)
+		class APickupAndRotateActor* CurrentItem;
+
+	bool bCanMove;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		bool bHoldingItem;
+
+	bool bInspecting;
+
+	float PitchMax;
+	float PitchMin;
+	float YawMax;
+	float YawMin;
+	float RollMax;
+	float RollMin;
+
+	FVector HoldingCompent;
+	FRotator LastRotation;
+
+	FVector Start;
+	FVector ForwardVector;
+	FVector End;
+
+	FHitResult Hit;
+
+	FComponentQueryParams DefaultComponentQueryParams;
+	FCollisionResponseParams DefaultResponseParam;
+
+	UPROPERTY(EditAnywhere)
+		class USceneComponent* HoldingComponent;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+		class USceneComponent* EquipedItemTest;
+
 protected:
+
+	virtual void BeginPlay();
+
+	virtual void Tick(float DeltaSeconds) override;
 
 	/** Resets HMD orientation in VR. */
 	void OnResetVR();
@@ -57,6 +99,43 @@ protected:
 
 	/** Handler for when a touch input stops. */
 	void TouchStopped(ETouchIndex::Type FingerIndex, FVector Location);
+
+
+	void OnAction();
+
+
+	void OnInspect();
+	void OnInspectReleased();
+
+	UFUNCTION(BlueprintCallable, Category = "C++ Functions")
+		void ToggleItemPickup();
+
+	void ToggleMovement();
+
+	void RaiseActor();
+	void LowerActor();
+
+	void FirstThirdPerson();
+
+	UFUNCTION(BlueprintCallable, Category = "C++ Functions")
+		void ResetPickUp();
+
+	UFUNCTION(BlueprintCallable, Category = "C++ Functions")
+		bool GetbHoldingItem();
+
+	void Throw();
+
+	bool bThirdPerson;
+
+
+
+	UPROPERTY(EditAnywhere)
+		class USceneComponent* Arrow;
+
+	//UPROPERTY()
+		//class UStaticMeshComponent* ArrowMesh;
+
+	FAttachmentTransformRules rules = FAttachmentTransformRules(EAttachmentRule::SnapToTarget, true);
 
 protected:
 	// APawn interface

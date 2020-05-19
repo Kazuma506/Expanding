@@ -8,6 +8,14 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "PickupAndRotateActor.h"
+#include "Animation/AnimInstance.h"
+#include "DrawDebugHelpers.h"
+
+
+#include <EngineGlobals.h>
+#include <Runtime/Engine/Classes/Engine/Engine.h>
 
 //////////////////////////////////////////////////////////////////////////
 // AExpandingCharacter
@@ -35,6 +43,7 @@ AExpandingCharacter::AExpandingCharacter()
 	// Create a camera boom (pulls in towards the player if there is a collision)
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
 	CameraBoom->SetupAttachment(RootComponent);
+	CameraBoom->AttachToComponent(this->GetMesh(), rules, FName("spine_01"));
 	CameraBoom->TargetArmLength = 300.0f; // The camera follows at this distance behind the character	
 	CameraBoom->bUsePawnControlRotation = true; // Rotate the arm based on the controller
 
@@ -43,8 +52,123 @@ AExpandingCharacter::AExpandingCharacter()
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName); // Attach the camera to the end of the boom and let the boom adjust to match the controller orientation
 	FollowCamera->bUsePawnControlRotation = false; // Camera does not rotate relative to arm
 
+	Arrow = CreateDefaultSubobject<USceneComponent>(TEXT("The Arrow Component"));
+	Arrow->SetRelativeLocation(FVector(0.0f, 0, 60.0f));
+
+	//ArrowMesh = MeshAsset.Object;
+
+	//Arrow->SetStaticMesh(ArrowMesh);
+
+
+	HoldingComponent = CreateDefaultSubobject<USceneComponent>(TEXT("HoldingComponent"));
+	HoldingComponent->SetupAttachment(GetCapsuleComponent());
+	//HoldingComponent->RelativeLocation.X = 110.f;
+
+	CurrentItem = NULL;
+	bCanMove = true;
+	bInspecting = false;
+	bThirdPerson = true;
+
+	EquipedItemTest = CreateDefaultSubobject<USceneComponent>(TEXT("Weapon"));
+	//EquipedItemTest->AttachToComponent(this->GetMesh(), rules, FName("hand_r"));
+
+
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
 	// are set in the derived blueprint asset named MyCharacter (to avoid direct content references in C++)
+}
+
+void AExpandingCharacter::BeginPlay()
+{
+	Super::BeginPlay();
+
+	PitchMax = GetWorld()->GetFirstPlayerController()->PlayerCameraManager->ViewPitchMax;
+	PitchMin = GetWorld()->GetFirstPlayerController()->PlayerCameraManager->ViewPitchMin;
+	YawMax = GetWorld()->GetFirstPlayerController()->PlayerCameraManager->ViewYawMax;
+	YawMin = GetWorld()->GetFirstPlayerController()->PlayerCameraManager->ViewYawMin;
+	RollMax = GetWorld()->GetFirstPlayerController()->PlayerCameraManager->ViewRollMax;
+	RollMin = GetWorld()->GetFirstPlayerController()->PlayerCameraManager->ViewRollMin;
+
+	CameraBoom->AttachToComponent(this->GetMesh(), rules, FName("spine_01"));
+
+
+}
+
+void AExpandingCharacter::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	Start = FollowCamera->GetComponentLocation();
+	ForwardVector = FollowCamera->GetForwardVector();
+	End = ((ForwardVector * 400.0f) + Start);
+
+	DrawDebugLine(GetWorld(), Start, End, FColor::Green, false, 1, 0, 1);
+
+	if (!bHoldingItem)
+	{
+		if (GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, DefaultComponentQueryParams, DefaultResponseParam))
+		{
+			if (Hit.GetActor()->GetClass()->IsChildOf(APickupAndRotateActor::StaticClass()))
+			{
+				CurrentItem = Cast<APickupAndRotateActor>(Hit.GetActor());
+			}
+		}
+
+		else
+		{
+			CurrentItem = NULL;
+		}
+	}
+
+	if (bInspecting)
+	{
+		if (bHoldingItem)
+		{
+
+			//float yaw = GetControlRotation().Yaw;
+			//GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("%f"), yaw));
+
+			//FollowCamera->SetFieldOfView(FMath::Lerp(FollowCamera->FieldOfView, 90.0f, 0.1f));
+
+			//CameraBoom->bUsePawnControlRotation = false;
+
+
+			//CameraBoom->SetRelativeRotation(FRotator(LastRotation));
+
+			float yaw = LastRotation.Yaw;
+			float roll = LastRotation.Roll;
+			float pitch = LastRotation.Pitch;
+
+
+
+			CameraBoom->SetWorldRotation(FRotator(pitch, yaw, roll));
+
+
+
+			CurrentItem->RotateActor();
+
+		}
+		else
+		{
+			//FollowCamera->SetFieldOfView(FMath::Lerp(FollowCamera->FieldOfView, 45.0f, 0.1f));
+
+		}
+	}
+	else
+	{
+		//FollowCamera->SetFieldOfView(FMath::Lerp(FollowCamera->FieldOfView, 90.0f, 0.1f));
+
+		if (bHoldingItem)
+		{
+			//HoldingComponent->SetRelativeLocation(FVector(50.0f, 0.0f, 0.f));
+		}
+	}
+
+	if (CurrentItem == NULL)
+	{
+		bHoldingItem = false;
+		bInspecting = false;
+		OnInspectReleased();
+	}
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -74,6 +198,156 @@ void AExpandingCharacter::SetupPlayerInputComponent(class UInputComponent* Playe
 
 	// VR headset functionality
 	PlayerInputComponent->BindAction("ResetVR", IE_Pressed, this, &AExpandingCharacter::OnResetVR);
+
+
+	PlayerInputComponent->BindAction("PickUpAndHold", IE_Pressed, this, &AExpandingCharacter::OnAction);
+
+
+	PlayerInputComponent->BindAction("Inspect", IE_Pressed, this, &AExpandingCharacter::OnInspect);
+	PlayerInputComponent->BindAction("Inspect", IE_Released, this, &AExpandingCharacter::OnInspectReleased);
+
+	PlayerInputComponent->BindAction("LiftUp", IE_Pressed, this, &AExpandingCharacter::RaiseActor);
+	PlayerInputComponent->BindAction("LiftDown", IE_Pressed, this, &AExpandingCharacter::LowerActor);
+
+	PlayerInputComponent->BindAction("SwitchView", IE_Pressed, this, &AExpandingCharacter::FirstThirdPerson);
+
+	PlayerInputComponent->BindAction("Throw", IE_Pressed, this, &AExpandingCharacter::Throw);
+}
+
+void AExpandingCharacter::FirstThirdPerson()
+{
+
+
+	if (bThirdPerson)
+	{
+		//GetWorld()->GetFirstPlayerController()->SetViewTargetWithBlend(FirstPersonCamera, 0.75f);
+		CameraBoom->TargetArmLength = -10;
+		CameraBoom->AttachToComponent(this->GetMesh(), rules, FName("head"));
+		bThirdPerson = false;
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("ITs fucking calling something")));
+
+
+	}
+	else
+	{
+		//	GetWorld()->GetFirstPlayerController()->SetViewTargetWithBlend(FollowCamera, 0.75f);
+		bThirdPerson = true;
+		CameraBoom->AttachToComponent(this->GetMesh(), rules, FName("spine_01"));
+		CameraBoom->TargetArmLength = 300;
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("ITs fucking calling something")));
+
+
+	}
+}
+
+void AExpandingCharacter::OnAction()
+{
+	if (CurrentItem && !bInspecting)
+	{
+		ToggleItemPickup();
+	}
+}
+
+void AExpandingCharacter::OnInspect()
+{
+	if (bHoldingItem)
+	{
+
+		FVector CameraBoomPos = CameraBoom->GetComponentLocation();
+		LastRotation = GetControlRotation();
+
+		CameraBoom->bUsePawnControlRotation = false;
+
+		ToggleMovement();
+	}
+	else
+	{
+		bInspecting = true;
+	}
+}
+
+void AExpandingCharacter::OnInspectReleased()
+{
+	if (bInspecting && bHoldingItem)
+	{
+
+		GetController()->SetControlRotation(LastRotation);
+
+		//	CameraBoom->SetRelativeRotation(LastRotation);
+			//FollowCamera->bUsePawnControlRotation = true;
+		CameraBoom->bUsePawnControlRotation = true;
+		ToggleMovement();
+
+	}
+	else
+	{
+		bInspecting = false;
+	}
+}
+
+void AExpandingCharacter::ToggleMovement()
+{
+	bCanMove = !bCanMove;
+	bInspecting = !bInspecting;
+	//bUseControllerRotationYaw = !bUseControllerRotationYaw;
+//	FollowCamera->bUsePawnControlRotation = !FollowCamera->bUsePawnControlRotation;
+}
+
+void AExpandingCharacter::ToggleItemPickup()
+{
+	if (CurrentItem)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("ITs fucking calling something")));
+		bHoldingItem = !bHoldingItem;
+		CurrentItem->Pickup();
+
+		if (!bHoldingItem)
+		{
+			CurrentItem = NULL;
+		}
+	}
+}
+
+void AExpandingCharacter::Throw()
+{
+	if (CurrentItem)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("ITs fucking calling something")));
+		bHoldingItem = !bHoldingItem;
+		CurrentItem->ThrowHoldingMesh();
+
+
+		if (!bHoldingItem)
+		{
+			CurrentItem = NULL;
+		}
+	}
+}
+
+void AExpandingCharacter::ResetPickUp()
+{
+	CurrentItem = NULL;
+	bHoldingItem = false;
+	bInspecting = false;
+}
+
+bool AExpandingCharacter::GetbHoldingItem()
+{
+	return bHoldingItem;
+}
+
+
+void AExpandingCharacter::RaiseActor()
+{
+
+	CurrentItem->LiftActor();
+
+}
+
+void AExpandingCharacter::LowerActor()
+{
+
+	CurrentItem->LowerActor();
 }
 
 
