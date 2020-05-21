@@ -19,21 +19,11 @@ APickupAndRotateActor::APickupAndRotateActor()
 	CompMesh->bEditableWhenInherited = true;
 	CompMesh->SetupAttachment(RootComponent);
 
-	//ItemType = CreateDefaultSubobject<UActorComponent>(TEXT("Item Type"));
-
-
-
-	//sItemType = "";
-
-
-
 	if (sItemType != "")
 	{
 
 		if (sItemType == "Weapon")
 		{
-			//SubItemType = CreateDefaultSubobject<UWeaponComponent>(TEXT("Sub Item Type"));
-			//ItemType = CreateDefaultSubobject<UWeaponComponent>(TEXT("Item type"));
 
 			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("Test Test")));
 		}
@@ -77,11 +67,8 @@ void APickupAndRotateActor::BeginPlay()
 			}
 		}
 	}
-//	TSubclassOf<UWeaponComponent> WeaponSubClass;
-	//WeaponSubClass = UWeaponComponent::StaticClass();
 	if (sItemType == "Weapon")
 	{
-		//SubItemType = Cast<UWeaponComponent>(WeaponSubClass);
 
 		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("It works")));
 	}
@@ -149,9 +136,6 @@ void APickupAndRotateActor::Pickup()
 
 
 	sItemType = CompMesh->GetOwner()->GetName();
-	//UStaticMeshComponent* ChildMesh = CompMesh->GetChildMeshComponent(0);
-
-//	ChildMesh->SetSimulatePhysics(bHolding);
 
 	CompMesh->SetCollisionEnabled(bHolding ? ECollisionEnabled::QueryAndPhysics : ECollisionEnabled::QueryAndPhysics);
 
@@ -166,7 +150,6 @@ void APickupAndRotateActor::Pickup()
 		CompMesh->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
 		ForwardVector = PlayerCamera->GetForwardVector();
 		HeightAdjuster = 0;
-		//CompMesh->AddForce(ForwardVector * 100000 * CompMesh->GetMass());
 		sItemType = NULL;
 	}
 
@@ -179,10 +162,6 @@ void APickupAndRotateActor::ThrowHoldingMesh()
 
 	CompMesh->SetEnableGravity(bGravity ? true : false);
 	CompMesh->SetSimulatePhysics(bHolding ? false : true);
-
-	//UStaticMeshComponent* ChildMesh = CompMesh->GetChildMeshComponent(0);
-
-//	ChildMesh->SetSimulatePhysics(bHolding);
 
 	CompMesh->SetCollisionEnabled(bHolding ? ECollisionEnabled::NoCollision : ECollisionEnabled::QueryAndPhysics);
 

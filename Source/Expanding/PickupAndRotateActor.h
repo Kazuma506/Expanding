@@ -39,14 +39,8 @@ public:
 	UPROPERTY(EditAnywhere)
 		UActorComponent* ItemType;
 
-	//UPROPERTY(EditAnywhere)
-	//	class UWeaponComponent* SubItemType;
-
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 		FString sItemType;
-
-	//UPROPERTY()
-		//class UWeaponComponent* WeaponComponent;
 
 	void ThrowHoldingMesh();
 
